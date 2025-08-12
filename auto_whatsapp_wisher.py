@@ -36,21 +36,35 @@ def save_history(history):
     """Save sent wishes history to file."""
     HISTORY_FILE.write_text(json.dumps(history, indent=2))
 
-def generate_ai_message(name, event_type):
-    """Generate a unique AI wish for the given name and event type."""
-    styles = [
-        "make it sound cheerful and casual",
-        "make it poetic and inspiring",
-        "make it heartfelt with a short memory or compliment",
-        "make it playful and lighthearted",
-        "make it thoughtful and warm"
-    ]
+def generate_ai_message(name, event_type, gender=None, role=None):
+    """Generate a unique AI wish for the given name, event type, gender, and role."""
+    
+    # Define style preferences based on gender/role
+    if role and role.lower() == "staff":
+        tone = "make it formal, respectful, and appreciative of their contribution"
+    elif gender and gender.lower() in ["female", "girl", "woman"]:
+        tone = "make it warm, kind, and cheerful with a gentle tone"
+    elif gender and gender.lower() in ["male", "boy", "man"]:
+        tone = "make it energetic, friendly, and motivating"
+    else:
+        tone = "make it friendly and heartfelt"
 
+    styles = [
+        "mention a positive quality about them",
+        "include a short blessing or wish for their future",
+        "add a line appreciating their presence in our lives",
+        "make it inspiring and uplifting",
+        "include a kind compliment"
+    ]
     chosen_style = random.choice(styles)
+
     prompt = (
-        f"Write a warm and personal WhatsApp {event_type} wish for {name}. "
-        f"{chosen_style}. Mention something about {datetime.now().strftime('%A')} "
-        f"or the month of {datetime.now().strftime('%B')}. No emojis. Two to three sentences."
+        f"Write a WhatsApp {event_type} wish for {name}. "
+        f"The person is a {role if role else 'member'} and is {gender if gender else 'unspecified gender'}. "
+        f"{tone}. Also, {chosen_style}. "
+        f"Mention something about {datetime.now().strftime('%A')} "
+        f"or the month of {datetime.now().strftime('%B')}. "
+        f"No emojis. Two to three sentences."
     )
 
     try:
@@ -74,6 +88,7 @@ def generate_ai_message(name, event_type):
         ]
         return random.choice(fallback_messages)
 
+
 def generate_unique_message(name, event_type):
     """Generate a wish that hasn't been used before for this person."""
     history = load_history()
@@ -92,7 +107,7 @@ def generate_unique_message(name, event_type):
 # ===== CONFIG =====
 GROUP_NAME = "Wishing group"
 PROJECT_FOLDER = os.path.dirname(__file__)
-EXCEL_FILE = os.path.join(PROJECT_FOLDER, "Students.xlsx")
+EXCEL_FILE = os.path.join(PROJECT_FOLDER, "Sample.xlsx")
 PROFILE_DIR = r"C:\Users\VISWA\ChromeWhatsAppProfile"
 
 # ===== LOAD EXCEL =====
@@ -106,6 +121,7 @@ except FileNotFoundError:
     exit()
 
 # ===== DATE NORMALIZATION =====
+# ===== DATE NORMALIZATION =====
 def normalize_date(v):
     try:
         dt = pd.to_datetime(v, dayfirst=True)
@@ -116,13 +132,24 @@ def normalize_date(v):
             return s
         return s
 
-events['Date_norm'] = events['Date'].apply(normalize_date)
+events['Date_norm'] = events['DOB'].apply(normalize_date)
 today = datetime.now().strftime("%d-%m")
 today_events = events[events['Date_norm'] == today]
 
 if today_events.empty:
     print("No events today. Exiting...")
     exit()
+
+# ===== GENERATE ALL MESSAGES =====
+all_messages = []
+for _, row in today_events.iterrows():
+    name = row['Name']
+    role = row.get('Role', None)
+    gender = row.get('Gender', None)
+    event_type = row.get('Type', 'birthday')  # Optional column
+    ai_message = generate_ai_message(name, event_type, gender, role)
+    all_messages.append(ai_message)
+
 
 # ===== OPEN WHATSAPP WEB =====
 chrome_options = Options()
@@ -163,5 +190,6 @@ time.sleep(0.5)
 
 send_button = wait.until(EC.element_to_be_clickable((By.XPATH, '//button[@aria-label="Send"]')))
 send_button.click()
+time.sleep(3)
 
 print(f"✅ Sent to group '{GROUP_NAME}':\n{final_message}")
